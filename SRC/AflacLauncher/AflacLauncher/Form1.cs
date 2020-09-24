@@ -1,4 +1,5 @@
 ﻿using Aflac.Updater.Contract;
+using Microsoft.Win32;
 using StreamJsonRpc;
 using System;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ namespace AflacLauncher
         bool WaitingTimeOutExpired = false;
         bool AppIsUpdating = false;
         string AppToStart = @"C:\Program Files (x86)\AflacApps\CPS\Aflac.ClaimsPaymentSystem.Shell.exe";
-        int TimeOutMax = 10;
+        int TimeOutMax = 30;
         int TimerCount = 0;
 
 
@@ -72,16 +73,29 @@ namespace AflacLauncher
             var proxy = (IUpdateControler)JsonRpc.Attach(pipeServer).Attach(typeof(IUpdateControler));
             //var result = await proxy.HeartBeatAsync(new HeartBeatCriteria() { Info = "Test" });
             var result = await proxy.CheckAndUpdateAsync(new CheckAndUpdateCriteria() { Application = "CPS" });
-            if (result.State.Equals("Current"))
+
+            switch (result.State.ToString().ToLower())
             {
-                AppIsUpdating = false;                
-            }
-            else
-            {
-                AppIsUpdating = true;
+                case "current":
+                    AppIsUpdating = false;
+                    break;
+                case "updating":
+                    AppIsUpdating = true;
+                    break;
+                case "error":
+                    AppIsUpdating = false;
+                    break;
+                default:
+                    AppIsUpdating = false;
+                    break;
             }
         }
 
+        private void ReadRegistry()
+        {
+            RegistryKey key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Aflac\Updater");
+            key.GetValue("Start").ToString();
+        }
 
     }
 }
