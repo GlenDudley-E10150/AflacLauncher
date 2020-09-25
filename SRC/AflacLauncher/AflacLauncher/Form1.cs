@@ -12,11 +12,14 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using log4net;
+
 
 namespace AflacLauncher
 {
     public partial class Form1 : Form
     {
+        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         bool WaitingTimeOutExpired = false;
         bool AppIsUpdating = false;
@@ -38,30 +41,39 @@ namespace AflacLauncher
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            log.Debug("Form_Load()");
+            log.Debug("Starting TimeOut Timer");
             myTimer.Tick += new EventHandler(TimerEventProcessor);
-            myTimer.Interval = 1000;
-            myTimer.Start();
+            myTimer.Interval = 5000;
+            log.Debug(string.Format("myTimer.Interval = {0};", myTimer.Interval));
+            log.Debug("ReadRegistry();");
             ReadRegistry();
+            log.Debug("myTimer.Start();");
+            myTimer.Start();
 
         }
 
 
         private void TimerEventProcessor(Object myObject, EventArgs myEventArgs)
         {
-            System.Diagnostics.Debug.WriteLine(string.Format("Checking with Service Checkpoint : {0}",TimerCount));
+
+
+            log.Debug(string.Format("Checking with Service Checkpoint : {0}",TimerCount));
             TimerCount += 1;
 
             if ((TimerCount >= TimeOutMax))
             {
+                log.Debug("TimerMax Exceeded");
                 if (!ResultRecieved)
                 {
-                    //Service did not respond so we assume the current installed version is good.
+                    log.Debug("Service did not respond so we assume the current installed version is good.");
                     LaunchApp();
                     Application.Exit();
                 }
                 //Throw Error
                 myTimer.Stop();
                 MessageBox.Show("Error : Updating CPS...Please Try Again");
+                log.Debug("Error : Updating CPS...Please Try Again");
                 Application.Exit();
             }
             if (ServiceError)
@@ -69,6 +81,7 @@ namespace AflacLauncher
                 //Throw Error
                 myTimer.Stop();
                 MessageBox.Show("Error : Updater Service response...Please Try Again");
+                log.Debug("Error : Updater Service response...Please Try Again");
                 Application.Exit();
             }
             _ = CheckAppAsync();
@@ -76,6 +89,8 @@ namespace AflacLauncher
             {
                 if (!AppIsUpdating && !ServiceError)
                 {
+                    log.Debug(string.Format("AppIsUpdating = {0}", AppIsUpdating));
+                    log.Debug(string.Format("ServiceError = {0}", ServiceError));
                     LaunchApp();
                     Application.Exit();
                 }
@@ -83,20 +98,25 @@ namespace AflacLauncher
         }
         private void LaunchApp()
         {
+            log.Debug(String.Format("Starting Application = {0}", AppToStart));
             System.Diagnostics.Process.Start(AppToStart);
         }
         private async Task CheckAppAsync()
         {
-            //this.Show();
-            //Call  Service and Loop until timeout or service respond True
+            log.Debug("Entering - private async Task CheckAppAsync()");
             var pipeServer = new NamedPipeClientStream(".", "Aflac.AutoUpdator", PipeDirection.InOut, PipeOptions.Asynchronous);
+            log.Debug("var pipeServer = new NamedPipeClientStream()");
             await pipeServer.ConnectAsync();
+            log.Debug("await pipeServer.ConnectAsync();");
             var proxy = (IUpdateControler)JsonRpc.Attach(pipeServer).Attach(typeof(IUpdateControler));
+            log.Debug("var proxy = (IUpdateControler)JsonRpc.Attach(pipeServer).Attach(typeof(IUpdateControler));");
             //var result = await proxy.HeartBeatAsync(new HeartBeatCriteria() { Info = "Test" });
             var result = await proxy.CheckAndUpdateAsync(new CheckAndUpdateCriteria() { Application = "CPS" });
 
 
             ResultRecieved = true;
+            log.Debug(string.Format("ResultRecieved = {0}", ResultRecieved));
+            log.Debug(string.Format("result.State = {0}", result.State.ToString()));
             MessageBox.Show(result.State.ToString().ToLower());
             switch (result.State.ToString().ToLower())
             {
